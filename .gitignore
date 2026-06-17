@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+dist/
+build/
+.DS_Store
+coverage/
+*.log
+mongodb-portable/
+client/dist/
+client/build/
+server/node_modules/
+client/node_modules/

@@ -1,0 +1,7 @@
+node_modules
+.env
+Dockerfile
+.dockerignore
+setup_mongo.ps1
+mongodb-portable
+dns-test.js

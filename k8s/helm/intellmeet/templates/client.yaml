@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-client
+  labels:
+    app: {{ .Chart.Name }}
+    component: client
+spec:
+  replicas: {{ .Values.replicaCount.client }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      component: client
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        component: client
+    spec:
+      containers:
+        - name: client
+          image: "{{ .Values.image.client.repository }}:{{ .Values.image.client.tag }}"
+          imagePullPolicy: {{ .Values.image.client.pullPolicy }}
+          ports:
+            - containerPort: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-client
+  labels:
+    app: {{ .Chart.Name }}
+    component: client
+spec:
+  ports:
+    - port: {{ .Values.service.client.port }}
+      targetPort: 80
+  selector:
+    app: {{ .Chart.Name }}
+    component: client
+  type: {{ .Values.service.client.type }}

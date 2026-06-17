@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-deployment
+  labels:
+    app: intellmeet
+    component: server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: intellmeet
+      component: server
+  template:
+    metadata:
+      labels:
+        app: intellmeet
+        component: server
+    spec:
+      containers:
+        - name: server
+          image: intellmeet-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: intellmeet-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: intellmeet-secrets
+                  key: JWT_SECRET
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: intellmeet-secrets
+                  key: JWT_REFRESH_SECRET
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server-service
+  labels:
+    app: intellmeet
+    component: server
+spec:
+  ports:
+    - port: 5000
+      targetPort: 5000
+  selector:
+    app: intellmeet
+    component: server
+  type: ClusterIP

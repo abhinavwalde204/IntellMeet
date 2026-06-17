@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-server
+  labels:
+    app: {{ .Chart.Name }}
+    component: server
+spec:
+  replicas: {{ .Values.replicaCount.server }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      component: server
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        component: server
+    spec:
+      containers:
+        - name: server
+          image: "{{ .Values.image.server.repository }}:{{ .Values.image.server.tag }}"
+          imagePullPolicy: {{ .Values.image.server.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.server.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: JWT_SECRET
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: JWT_REFRESH_SECRET
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-server
+  labels:
+    app: {{ .Chart.Name }}
+    component: server
+spec:
+  ports:
+    - port: {{ .Values.service.server.port }}
+      targetPort: 5000
+  selector:
+    app: {{ .Chart.Name }}
+    component: server
+  type: {{ .Values.service.server.type }}

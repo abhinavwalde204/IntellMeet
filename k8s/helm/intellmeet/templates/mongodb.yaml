@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-mongodb-pvc
+spec:
+  accessModes:
+    - {{ .Values.persistence.mongodb.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.mongodb.size }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-mongodb
+  labels:
+    app: {{ .Chart.Name }}
+    component: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      component: mongodb
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        component: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: "{{ .Values.image.mongodb.repository }}:{{ .Values.image.mongodb.tag }}"
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongodb-storage
+              mountPath: /data/db
+      volumes:
+        - name: mongodb-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-mongodb-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mongodb
+  labels:
+    app: {{ .Chart.Name }}
+    component: mongodb
+spec:
+  ports:
+    - port: {{ .Values.service.mongodb.port }}
+      targetPort: 27017
+  selector:
+    app: {{ .Chart.Name }}
+    component: mongodb

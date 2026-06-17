@@ -1,0 +1,116 @@
+name: IntellMeet CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/workflows/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Backend Checks
+      - name: Install Server Dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Lint Server
+        run: |
+          cd server
+          # If a lint script exists, run it. Otherwise, continue.
+          npm run lint --if-present
+
+      # Frontend Checks
+      - name: Install Client Dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build Client (TypeScript Check)
+        run: |
+          cd client
+          npm run build
+
+  build-and-push:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Registry (Docker Hub)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Server Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-server:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-server:${{ github.sha }}
+
+      - name: Build and Push Client Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./client
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Deploy base Configs & Secrets
+        run: |
+          kubectl apply -f k8s/config.yaml
+
+      - name: Deploy Databases (Mongo & Redis)
+        run: |
+          kubectl apply -f k8s/mongodb.yaml
+          kubectl apply -f k8s/redis.yaml
+
+      - name: Deploy Backend Server
+        run: |
+          # Use envsubst or sed to patch the image tag if needed
+          sed -i 's|intellmeet-server:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-server:${{ github.sha }}|g' k8s/server.yaml
+          kubectl apply -f k8s/server.yaml
+
+      - name: Deploy Frontend Client
+        run: |
+          sed -i 's|intellmeet-client:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:${{ github.sha }}|g' k8s/client.yaml
+          kubectl apply -f k8s/client.yaml
+
+      - name: Verify Rollout Status
+        run: |
+          kubectl rollout status deployment/server-deployment
+          kubectl rollout status deployment/client-deployment

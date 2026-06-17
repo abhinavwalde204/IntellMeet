@@ -1,0 +1,51 @@
+# Default values for intellmeet.
+# This is a YAML-formatted file.
+
+replicaCount:
+  server: 2
+  client: 2
+
+image:
+  server:
+    repository: intellmeet-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  client:
+    repository: intellmeet-client
+    tag: latest
+    pullPolicy: IfNotPresent
+  mongodb:
+    repository: mongo
+    tag: latest
+  redis:
+    repository: redis
+    tag: alpine
+
+service:
+  server:
+    type: ClusterIP
+    port: 5000
+  client:
+    type: LoadBalancer
+    port: 80
+  mongodb:
+    type: ClusterIP
+    port: 27017
+  redis:
+    type: ClusterIP
+    port: 6379
+
+config:
+  nodeEnv: production
+  mongoUri: mongodb://intellmeet-mongodb:27017/intellmeet
+  redisUrl: redis://intellmeet-redis:6379
+  clientUrl: http://localhost:8080
+
+secrets:
+  jwtSecret: c3VwZXJzZWNyZXRrZXlfY2hhbmdlX3RoaXNfaW5fcHJvZHVjdGlvbg==
+  jwtRefreshSecret: c3VwZXJzZWNyZXRyZWZyZXNoa2V5X2NoYW5nZV90aGlzX2luX3Byb2R1Y3Rpb24=
+
+persistence:
+  mongodb:
+    size: 10Gi
+    accessMode: ReadWriteOnce
