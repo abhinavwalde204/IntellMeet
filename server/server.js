@@ -22,30 +22,6 @@ Sentry.init({
   environment: process.env.NODE_ENV || 'development',
   tracesSampleRate: 1.0,
 });
-import express from 'express';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
-import mongoSanitize from 'express-mongo-sanitize';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import * as Sentry from '@sentry/node';
-import client from 'prom-client';
-import connectDB from './config/db.js';
-import authRoutes from './routes/authRoutes.js';
-import meetingRoutes from './routes/meetingRoutes.js';
-import workspaceRoutes from './routes/workspaceRoutes.js';
-import taskRoutes from './routes/taskRoutes.js';
-import notificationRoutes from './routes/notificationRoutes.js';
-
-dotenv.config();
-
-Sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  environment: process.env.NODE_ENV || 'development',
-  tracesSampleRate: 1.0,
-});
 
 // Setup Prometheus Metrics Registry
 const register = new client.Registry();
