@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Users, Plus, Mail, Shield, User, Copy, Check, Crown } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Mail, Shield, Copy, Check, Crown } from 'lucide-react';
 
 interface Member {
   id: string;
@@ -153,7 +153,7 @@ export default function TeamWorkspace() {
           <div className="glass-card rounded-2xl p-8 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-white mb-2">Invite Team Member</h2>
             <p className="text-sm text-slate-400 mb-6">Send an invitation to join the workspace.</p>
-            
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
               <input

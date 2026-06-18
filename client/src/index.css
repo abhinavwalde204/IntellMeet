@@ -85,11 +85,14 @@
 }
 
 /* Hide scrollbar for kanban horizontal scroll */
-@utility scrollbar-hide {
+@utility scrollbarHide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-@utility scrollbar-hide::-webkit-scrollbar {
-  display: none;
+
+@layer utilities {
+  .scrollbarHide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
