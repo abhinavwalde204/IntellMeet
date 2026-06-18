@@ -328,7 +328,7 @@ export default function LandingPage() {
           </div>
           <span className="text-base font-bold text-slate-400">IntelliMeet</span>
         </div>
-        <p className="text-sm">© 2026 Zidio Development &nbsp;·&nbsp; Built with ♥ for the Zidio Internship</p>
+        <p className="text-sm">© 2026 Zidio Development &nbsp;·&nbsp; Built by Abhinav Walde, Priyansh Rai, Raghuveer Kumar, Ayush Patel</p>
         <div className="flex justify-center gap-4 mt-4 text-xs">
           <Link to="/login" className="hover:text-slate-300 transition-colors">Login</Link>
           <Link to="/register" className="hover:text-slate-300 transition-colors">Register</Link>
