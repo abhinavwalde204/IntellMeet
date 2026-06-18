@@ -22,7 +22,17 @@ export default function Register() {
       setAuth(response.data.user, response.data.accessToken);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to register');
+      console.error('Registration error:', err);
+      if (err.response) {
+        // Backend returned an error
+        setError(err.response.data.message || 'Registration failed');
+      } else if (err.request) {
+        // Request was made but no response
+        setError('Network error: Unable to reach the server');
+      } else {
+        // Something else happened
+        setError('An unexpected error occurred');
+      }
     } finally {
       setLoading(false);
     }
