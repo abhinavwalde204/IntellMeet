@@ -106,6 +106,11 @@ io.on('connection', (socket) => {
 // Make io accessible to route handlers
 app.set('io', io);
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to IntellMeet API' });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/meetings', meetingRoutes);
