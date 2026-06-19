@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/workflows/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -27,8 +27,13 @@ jobs:
       - name: Lint Server
         run: |
           cd server
-          # If a lint script exists, run it. Otherwise, continue.
-          npm run lint --if-present
+          # Run lint script if defined; ignore if not present or fails
+          if npm run lint; then
+            echo "Lint passed"
+          else
+            echo "Lint failed or no script, failing the job"
+            exit 1
+          fi
 
       # Frontend Checks
       - name: Install Client Dependencies
@@ -101,14 +106,23 @@ jobs:
 
       - name: Deploy Backend Server
         run: |
-          # Use envsubst or sed to patch the image tag if needed
-          sed -i 's|intellmeet-server:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-server:${{ github.sha }}|g' k8s/server.yaml
-          kubectl apply -f k8s/server.yaml
+          # Replace the image tag with the SHA‑tagged image
+          if [[ -f k8s/server.yaml ]]; then
+            sed -i.bak -e 's|intellmeet-server:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-server:${{ github.sha }}|g' k8s/server.yaml
+            kubectl apply -f k8s/server.yaml
+          else
+            echo "k8s/server.yaml not found, skipping deployment"
+          fi
 
       - name: Deploy Frontend Client
         run: |
-          sed -i 's|intellmeet-client:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:${{ github.sha }}|g' k8s/client.yaml
-          kubectl apply -f k8s/client.yaml
+          # Replace the image tag with the SHA‑tagged image
+          if [[ -f k8s/client.yaml ]]; then
+            sed -i.bak -e 's|intellmeet-client:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:${{ github.sha }}|g' k8s/client.yaml
+            kubectl apply -f k8s/client.yaml
+          else
+            echo "k8s/client.yaml not found, skipping deployment"
+          fi
 
       - name: Verify Rollout Status
         run: |
