@@ -14,12 +14,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      # Backend Checks
       - name: Install Server Dependencies
         run: |
           cd server
           npm ci
-      # Frontend Checks
       - name: Install Client Dependencies
         run: |
           cd client
@@ -58,42 +56,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:${{ github.sha }}
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-      - name: Set up Kubeconfig
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-      - name: Deploy base Configs & Secrets
-        run: |
-          kubectl apply -f k8s/config.yaml
-      - name: Deploy Databases (Mongo & Redis)
-        run: |
-          kubectl apply -f k8s/mongodb.yaml
-          kubectl apply -f k8s/redis.yaml
-      - name: Deploy Backend Server
-        run: |
-          if [[ -f k8s/server.yaml ]]; then
-            sed -i.bak -e 's|intellmeet-server:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-server:${{ github.sha }}|g' k8s/server.yaml
-            kubectl apply -f k8s/server.yaml
-          else
-            echo "k8s/server.yaml not found, skipping deployment"
-          fi
-      - name: Deploy Frontend Client
-        run: |
-          if [[ -f k8s/client.yaml ]]; then
-            sed -i.bak -e 's|intellmeet-client:latest|${{ secrets.DOCKERHUB_USERNAME }}/intellmeet-client:${{ github.sha }}|g' k8s/client.yaml
-            kubectl apply -f k8s/client.yaml
-          else
-            echo "k8s/client.yaml not found, skipping deployment"
-          fi
-      - name: Verify Rollout Status
-        run: |
-          kubectl rollout status deployment/server-deployment
-          kubectl rollout status deployment/client-deployment
