@@ -40,7 +40,7 @@ register.registerMetric(httpRequestDurationSeconds);
 // production Vercel URL, e.g. https://intellmeet-gold.vercel.app (no trailing slash).
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  'https://intellmeet-gold.vercel.app',
+  'https://intell-meet-gold.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000'
 ].filter(Boolean);
