@@ -35,6 +35,26 @@ const httpRequestDurationSeconds = new client.Histogram({
 });
 register.registerMetric(httpRequestDurationSeconds);
 
+// Centralized list of allowed origins for both Express CORS and Socket.io CORS.
+// CLIENT_URL should be set in Render's dashboard (Environment tab) to your
+// production Vercel URL, e.g. https://intellmeet-gold.vercel.app (no trailing slash).
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'https://intellmeet-gold.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000'
+].filter(Boolean);
+
+const corsOriginCheck = function (origin, callback) {
+  // Allow requests with no origin (e.g. server-to-server, curl, mobile apps)
+  if (!origin || allowedOrigins.includes(origin)) {
+    callback(null, true);
+  } else {
+    console.warn(`CORS blocked request from origin: ${origin}`);
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  }
+};
+
 async function startServer() {
   // Connect to MongoDB FIRST
   await connectDB();
@@ -47,7 +67,7 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(cors({
-    origin: process.env.CLIENT_URL || 'https://intell-meet-phi.vercel.app',
+    origin: corsOriginCheck,
     credentials: true
   }));
   app.use(helmet());
@@ -69,7 +89,7 @@ async function startServer() {
   // Socket.io
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: corsOriginCheck,
       credentials: true
     }
   });
@@ -141,4 +161,3 @@ startServer().catch(err => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
-// Duplicate server setup removed - retained earlier implementation
