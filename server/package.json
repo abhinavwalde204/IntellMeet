@@ -1,6 +1,6 @@
 {
   "name": "intellmeet-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "IntellMeet API Server",
   "main": "server.js",
   "type": "module",
