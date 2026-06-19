@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
 const api = axios.create({
-  baseURL: 'https://intellmeet-bem5.onrender.com/api',
+  baseURL: 'https://intellmeet-33ld.onrender.com/api',
   withCredentials: true,
 });
 
@@ -28,7 +28,7 @@ api.interceptors.response.use(
 
       try {
         // Attempt to refresh token
-        const res = await axios.post('https://intellmeet-bem5.onrender.com/api/auth/refresh', {}, { withCredentials: true });
+        const res = await axios.post('https://intellmeet-33ld.onrender.com/api/auth/refresh', {}, { withCredentials: true });
         const { accessToken } = res.data;
 
         // Update Zustand store
