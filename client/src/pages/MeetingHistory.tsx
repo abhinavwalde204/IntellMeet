@@ -220,7 +220,7 @@ export default function MeetingHistory() {
                 {(!selectedMeeting.actionItems || selectedMeeting.actionItems.length === 0) ? (
                   <p className="text-slate-500 text-sm italic">No action items extracted.</p>
                 ) : (
-                  selectedMeeting.actionItems.map((item, idx) => (
+                  selectedMeeting.actionItems.map((item: any, idx: number) => (
                     <div key={idx} className="flex items-center justify-between bg-white/5 rounded-xl p-4">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
@@ -249,7 +249,7 @@ export default function MeetingHistory() {
                 {(!selectedMeeting.participants || selectedMeeting.participants.length === 0) ? (
                   <p className="text-slate-500 text-sm italic">No participants found.</p>
                 ) : (
-                  selectedMeeting.participants.map((p, idx) => (
+                  selectedMeeting.participants.map((p: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-2 bg-white/5 rounded-xl px-4 py-2.5">
                       <InitialsAvatar name={p.userId?.name || p.name || 'User'} url={p.userId?.avatarUrl} className="w-8 h-8 text-xs" />
                       <span className="text-sm font-medium text-slate-300">{p.userId?.name || p.name || 'User'}</span>

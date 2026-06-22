@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Users, Plus, Mail, Shield, Copy, Check, Crown, Loader2 } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
 import { EmptyState, InitialsAvatar } from '../App';
@@ -12,7 +12,6 @@ export default function TeamWorkspace() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
-  const queryClient = useQueryClient();
 
   const { data: workspace, isLoading: workspaceLoading } = useQuery({
     queryKey: ['workspace', 'current'],

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, Clock, CheckCircle, Users, BarChart3, ArrowUp, BarChart2 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Clock, CheckCircle, Users, BarChart3, BarChart2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { InitialsAvatar, EmptyState } from '../App';
@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 type Range = '7d' | '30d' | '90d';
 
 // Skeleton shimmer component
-const Skeleton = ({ className = '' }: { className?: string }) => (
-  <div className={`bg-slate-700/60 rounded-xl animate-pulse ${className}`} />
+const Skeleton = ({ className = '', style }: { className?: string, style?: React.CSSProperties }) => (
+  <div className={`bg-slate-700/60 rounded-xl animate-pulse ${className}`} style={style} />
 );
 
 export default function Analytics() {
@@ -18,20 +18,18 @@ export default function Analytics() {
 
   const { data: summary, isLoading: summaryLoading, isError: summaryError } = useQuery({
     queryKey: ['analytics', 'summary', range],
-    queryFn: async () => {
+    queryFn: async (): Promise<any> => {
       const { data } = await axios.get(`/api/analytics/summary?range=${range}`);
       return data;
-    },
-    onError: () => toast.error('Failed to load analytics data'),
+    }
   });
 
-  const { data: teamData, isLoading: teamLoading, isError: teamError } = useQuery({
+  const { data: teamData, isLoading: teamLoading } = useQuery({
     queryKey: ['analytics', 'team', range],
-    queryFn: async () => {
+    queryFn: async (): Promise<any> => {
       const { data } = await axios.get(`/api/analytics/team?range=${range}`);
       return data;
-    },
-    onError: () => toast.error('Failed to load team data'),
+    }
   });
 
   const metrics = summary ? [

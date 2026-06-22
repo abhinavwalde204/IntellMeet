@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, GripVertical, MoreHorizontal, Calendar, ArrowLeft, Tag, Loader2, Sparkles, RefreshCw, X } from 'lucide-react';
+import { Plus, GripVertical, MoreHorizontal, Calendar, ArrowLeft, Tag, Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
@@ -20,10 +20,6 @@ interface TaskItem {
   meetingId?: { title: string; roomId: string } | null;
 }
 
-interface Workspace {
-  _id: string;
-  name: string;
-}
 
 const COLUMNS = [
   { id: 'backlog', title: 'Backlog', color: 'bg-slate-500' },
@@ -60,7 +56,7 @@ export default function KanbanBoard() {
   // Fetch workspaces
   const { data: workspaces = [], isLoading: workspacesLoading } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ _id: string, name: string }[]> => {
       const { data } = await axios.get('/api/workspaces');
       const ws = data.workspaces || [];
       if (ws.length > 0 && !selectedWorkspace) {
@@ -85,7 +81,7 @@ export default function KanbanBoard() {
   // Fetch tasks
   const { data: tasks = [], isLoading: tasksLoading, refetch: refetchTasks } = useQuery({
     queryKey: ['tasks', selectedWorkspace],
-    queryFn: async () => {
+    queryFn: async (): Promise<TaskItem[]> => {
       const { data } = await axios.get(`/api/tasks?workspaceId=${selectedWorkspace}`);
       return data.tasks || [];
     },
@@ -153,7 +149,7 @@ export default function KanbanBoard() {
 
       return { previousTasks };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(['tasks', selectedWorkspace], context.previousTasks);
       }
@@ -178,7 +174,7 @@ export default function KanbanBoard() {
 
       return { previousTasks };
     },
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(['tasks', selectedWorkspace], context.previousTasks);
       }
@@ -237,7 +233,7 @@ export default function KanbanBoard() {
     });
   };
 
-  const getColumnTasks = (columnId: string) => tasks.filter(t => t.status === columnId);
+  const getColumnTasks = (columnId: string) => tasks.filter((t: TaskItem) => t.status === columnId);
 
   const loading = workspacesLoading || tasksLoading;
 
@@ -473,12 +469,13 @@ export default function KanbanBoard() {
                               )}
                               {task.assigneeName && (
                                 <div className="flex items-center gap-1.5 ml-auto">
-                                  <InitialsAvatar
-                                    name={task.assigneeName}
-                                    url={task.assigneeId?.avatarUrl}
-                                    className="w-6 h-6 text-[10px]"
-                                    title={task.assigneeName}
-                                  />
+                                  <div title={task.assigneeName}>
+                                    <InitialsAvatar
+                                      name={task.assigneeName}
+                                      url={task.assigneeId?.avatarUrl}
+                                      className="w-6 h-6 text-[10px]"
+                                    />
+                                  </div>
                                 </div>
                               )}
                             </div>

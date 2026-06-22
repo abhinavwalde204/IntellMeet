@@ -196,8 +196,8 @@ export default function MeetingRoom() {
 
   // Combine remote participants with local user for display
   const displayParticipants = [
-    { id: user?._id || 'local', name: 'You', isLocal: true, videoOn: isVideoOn, stream: localStream, avatarUrl: user?.avatarUrl },
-    ...participants.filter(p => (p.userId?._id || p.userId?.id) !== user?._id).map(p => ({
+    { id: user?.id || 'local', name: 'You', isLocal: true, videoOn: isVideoOn, stream: localStream, avatarUrl: user?.avatarUrl },
+    ...participants.filter(p => (p.userId?._id || p.userId?.id) !== user?.id).map(p => ({
       id: p.userId?._id || p.userId?.id,
       name: p.userId?.name || 'Unknown',
       isLocal: false,
