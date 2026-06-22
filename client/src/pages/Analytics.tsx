@@ -4,7 +4,6 @@ import { ArrowLeft, TrendingUp, Clock, CheckCircle, Users, BarChart3, BarChart2 
 import { useQuery } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { InitialsAvatar, EmptyState } from '../App';
-import { toast } from 'sonner';
 
 type Range = '7d' | '30d' | '90d';
 
