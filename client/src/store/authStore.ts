@@ -6,6 +6,7 @@ interface User {
   email: string;
   role: string;
   avatar: string;
+  avatarUrl?: string; // added for compatibility with components expecting avatarUrl
 }
 
 interface AuthState {

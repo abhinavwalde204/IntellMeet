@@ -13,7 +13,8 @@ router.use(protect);
 
 router.get('/', getNotifications);
 router.put('/read-all', markAllAsRead);
-router.put('/:id/read', markAsRead);
+router.patch('/:id/read', markAsRead);
 router.post('/', createNotification);
+
 
 export default router;

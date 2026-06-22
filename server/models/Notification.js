@@ -4,12 +4,13 @@ const notificationSchema = new mongoose.Schema({
   recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   type: {
     type: String,
-    enum: ['mention', 'action-item', 'meeting-invite', 'task-assigned', 'meeting-summary'],
+    enum: ['mention', 'action-item', 'meeting-invite', 'task-assigned', 'meeting-summary', 'ai_summary_ready', 'meeting_starting'],
     required: true
   },
   title: { type: String, required: true },
   message: { type: String, default: '' },
   link: { type: String, default: '' },
+  resourceId: { type: String, default: '' },
   read: { type: Boolean, default: false },
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });

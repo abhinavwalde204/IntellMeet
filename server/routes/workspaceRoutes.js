@@ -5,7 +5,9 @@ import {
   getWorkspaces,
   getWorkspace,
   inviteMember,
-  joinWorkspace
+  joinWorkspace,
+  getCurrentWorkspace,
+  generateInviteToken
 } from '../controllers/workspaceController.js';
 
 const router = express.Router();
@@ -13,8 +15,10 @@ const router = express.Router();
 router.use(protect);
 
 router.route('/').get(getWorkspaces).post(createWorkspace);
+router.get('/current', getCurrentWorkspace);
 router.route('/:id').get(getWorkspace);
 router.post('/:id/invite', inviteMember);
+router.post('/:id/invite-token', generateInviteToken);
 router.post('/join/:token', joinWorkspace);
 
 export default router;

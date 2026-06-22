@@ -16,6 +16,13 @@ const actionItemSchema = new mongoose.Schema({
   priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' }
 });
 
+const messageSchema = new mongoose.Schema({
+  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  senderName: { type: String },
+  text: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now }
+}, { _id: false });
+
 const meetingSchema = new mongoose.Schema({
   title: { type: String, default: 'Untitled Meeting' },
   hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -41,6 +48,7 @@ const meetingSchema = new mongoose.Schema({
   summary: { type: String, default: '' },
   decisions: [{ type: String }],
   actionItems: [actionItemSchema],
+  messages: [messageSchema],
 
   // Recording
   recordingUrl: { type: String, default: '' },

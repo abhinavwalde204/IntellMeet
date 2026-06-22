@@ -2,16 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Mic, MicOff, Camera, CameraOff, MonitorUp, PhoneOff,
-  MessageSquare, Users, LayoutGrid, Sparkles, Send, X
+  MessageSquare, Users, LayoutGrid, User, Sparkles, Send, X
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
+import axios from '../lib/axios';
+import { InitialsAvatar, EmptyState } from '../App';
 
 interface ChatMessage {
-  id: string;
-  sender: string;
+  _id?: string;
+  senderId: any;
+  senderName: string;
   text: string;
-  time: string;
+  timestamp: string;
 }
 
 interface TranscriptEntry {
@@ -21,20 +25,6 @@ interface TranscriptEntry {
 }
 
 type SidebarTab = 'chat' | 'people' | 'transcript';
-
-const MOCK_TRANSCRIPT: TranscriptEntry[] = [
-  { speaker: 'Host', text: "Good morning everyone. Let's get started with the sprint review.", timestamp: 0 },
-  { speaker: 'Sarah', text: "I've completed the authentication flow and dashboard layout.", timestamp: 12 },
-  { speaker: 'Mike', text: "Backend API endpoints are all done. Working on WebRTC now.", timestamp: 28 },
-  { speaker: 'Alex', text: "Whisper integration is set up. I suggest 5-second audio chunks.", timestamp: 44 },
-];
-
-const MOCK_PARTICIPANTS = [
-  { id: '1', name: 'You', muted: false, videoOff: false, isHost: true },
-  { id: '2', name: 'Sarah Miller', muted: false, videoOff: false },
-  { id: '3', name: 'Mike Johnson', muted: true, videoOff: false },
-  { id: '4', name: 'Alex Chen', muted: false, videoOff: true },
-];
 
 export default function MeetingRoom() {
   const { id } = useParams<{ id: string }>();
@@ -46,45 +36,123 @@ export default function MeetingRoom() {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', sender: 'Alex Chen', text: "Let's review the AI transcription accuracy later.", time: '10:42' },
-    { id: '2', sender: 'Sarah Miller', text: "Agreed! The glassmorphism UI looks 🔥", time: '10:43' },
-  ]);
   const [chatInput, setChatInput] = useState('');
+  
+  // Real-time states
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
   const [liveCaption, setLiveCaption] = useState('');
+  
+  // WebRTC / Layout state
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'speaker'>('speaker');
+  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+  
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  
   const chatEndRef = useRef<HTMLDivElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Simulate live transcript streaming
+  // Fetch meeting details
+  const { data: meetingData, isLoading: meetingLoading } = useQuery({
+    queryKey: ['meeting', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/meetings/${id}`);
+      return data.meeting;
+    }
+  });
+
+  // Fetch initial participants
+  useQuery({
+    queryKey: ['meeting-participants', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/meetings/${id}/participants`);
+      setParticipants(data.participants || []);
+      return data.participants;
+    }
+  });
+
+  // Fetch initial messages
+  useQuery({
+    queryKey: ['meeting-messages', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/meetings/${id}/messages`);
+      setMessages(data.messages || []);
+      return data.messages;
+    }
+  });
+
+  // Init local media
   useEffect(() => {
-    let idx = 0;
-    const interval = setInterval(() => {
-      if (idx < MOCK_TRANSCRIPT.length) {
-        const entry = MOCK_TRANSCRIPT[idx];
-        setLiveCaption(`[${entry.speaker}] ${entry.text}`);
-        setTimeout(() => {
-          setTranscript(prev => [...prev, entry]);
-          setLiveCaption('');
-        }, 2500);
-        idx++;
-      } else {
-        clearInterval(interval);
+    async function setupLocalMedia() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: isVideoOn, audio: isMicOn });
+        setLocalStream(stream);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error("Failed to access media devices", err);
       }
-    }, 5000);
-    return () => clearInterval(interval);
+    }
+    setupLocalMedia();
+
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+    };
   }, []);
 
+  // Update local stream tracks when toggled
   useEffect(() => {
-    const newSocket = io('http://localhost:5000', { withCredentials: true });
+    if (localStream) {
+      localStream.getVideoTracks().forEach(track => {
+        track.enabled = isVideoOn;
+      });
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = isMicOn;
+      });
+    }
+  }, [isVideoOn, isMicOn, localStream]);
+
+  // Socket setup
+  useEffect(() => {
+    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', { withCredentials: true });
     setSocket(newSocket);
+    
     newSocket.on('connect', () => {
-      newSocket.emit('join-room', id, user?.id || 'guest');
+      newSocket.emit('join-room', id, user);
     });
-    newSocket.on('receive-message', (msg: ChatMessage) => {
+
+    newSocket.on('participant:joined', (newUser) => {
+      setParticipants(prev => {
+        if (!prev.find(p => p.userId?._id === newUser._id || p.userId?._id === newUser.id)) {
+          return [...prev, { userId: newUser, joinedAt: new Date() }];
+        }
+        return prev;
+      });
+    });
+
+    newSocket.on('participant:left', (userId) => {
+      setParticipants(prev => prev.filter(p => p.userId?._id !== userId && p.userId?.id !== userId));
+    });
+
+    newSocket.on('message:receive', (msg: ChatMessage) => {
       setMessages(prev => [...prev, msg]);
     });
+
+    newSocket.on('transcription:update', (entry: TranscriptEntry) => {
+      setLiveCaption(`[${entry.speaker}] ${entry.text}`);
+      setTimeout(() => {
+        setTranscript(prev => [...prev, entry]);
+        setLiveCaption('');
+      }, 1500);
+      setActiveSpeakerId(entry.speaker); // simplistic speaker detection based on name/id
+    });
+
     return () => { newSocket.disconnect(); };
   }, [id, user]);
 
@@ -96,17 +164,19 @@ export default function MeetingRoom() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript]);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!chatInput.trim()) return;
-    const msg: ChatMessage = {
-      id: Date.now().toString(),
-      sender: user?.name || 'You',
-      text: chatInput,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setMessages(prev => [...prev, msg]);
-    socket?.emit('send-message', id, msg);
-    setChatInput('');
+    
+    const msgData = { text: chatInput };
+    try {
+      const { data } = await axios.post(`/api/meetings/${id}/messages`, msgData);
+      const msg = data.message;
+      setMessages(prev => [...prev, msg]);
+      socket?.emit('send-message', id, msg);
+      setChatInput('');
+    } catch (err) {
+      console.error('Failed to send message', err);
+    }
   };
 
   const toggleSidebar = (tab: SidebarTab) => {
@@ -115,14 +185,36 @@ export default function MeetingRoom() {
 
   const handleLeave = () => {
     setShowSummaryModal(true);
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+    }
   };
 
   const confirmLeave = () => {
     navigate('/history');
   };
 
+  // Combine remote participants with local user for display
+  const displayParticipants = [
+    { id: user?._id || 'local', name: 'You', isLocal: true, videoOn: isVideoOn, stream: localStream, avatarUrl: user?.avatarUrl },
+    ...participants.filter(p => (p.userId?._id || p.userId?.id) !== user?._id).map(p => ({
+      id: p.userId?._id || p.userId?.id,
+      name: p.userId?.name || 'Unknown',
+      isLocal: false,
+      videoOn: false, // Since true P2P WebRTC signaling isn't implemented, default to off for remote
+      avatarUrl: p.userId?.avatarUrl
+    }))
+  ];
+
+  const toggleLayout = () => {
+    setLayoutMode(prev => prev === 'speaker' ? 'grid' : 'speaker');
+  };
+
+  const isSolo = displayParticipants.length <= 1;
+  const currentLayout = isSolo ? 'grid' : layoutMode;
+
   return (
-    <div className="h-screen w-full bg-[#0c1220] text-white flex flex-col overflow-hidden">
+    <div className="h-screen w-full bg-[#0c1220] text-white flex flex-col overflow-hidden font-sans selection:bg-blue-500/30">
 
       {/* Top Bar */}
       <header className="h-14 border-b border-white/[0.06] flex items-center justify-between px-5 bg-slate-900/60 backdrop-blur z-20 flex-shrink-0">
@@ -130,12 +222,20 @@ export default function MeetingRoom() {
           <div className="flex items-center gap-1.5 bg-red-500/20 text-red-400 text-xs font-bold px-2.5 py-1 rounded-full border border-red-500/30">
             <div className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" /> LIVE
           </div>
-          <h2 className="font-medium text-sm tracking-tight text-slate-200">Weekly Sync · {id}</h2>
+          {meetingLoading ? (
+            <div className="h-5 w-40 bg-slate-700 animate-pulse rounded"></div>
+          ) : (
+            <h2 className="font-medium text-sm tracking-tight text-slate-200">{meetingData?.title || 'Meeting'}</h2>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 bg-white/5 px-3 py-1.5 rounded-lg font-medium">00:24:15</span>
-          <button className="p-2 text-slate-400 hover:text-white transition-colors bg-white/5 rounded-lg">
-            <LayoutGrid size={18} />
+          <button 
+            onClick={toggleLayout}
+            disabled={isSolo}
+            className={`p-2 transition-colors rounded-lg ${isSolo ? 'text-slate-600' : 'text-slate-400 hover:text-white bg-white/5'}`}
+            title="Toggle Layout"
+          >
+            {currentLayout === 'speaker' ? <LayoutGrid size={18} /> : <User size={18} />}
           </button>
         </div>
       </header>
@@ -143,35 +243,85 @@ export default function MeetingRoom() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Video Grid */}
-        <div className={`flex-1 p-2 md:p-4 overflow-hidden transition-all duration-300 relative`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 h-full">
-            {MOCK_PARTICIPANTS.map((p, i) => (
-              <div key={p.id} className="relative bg-slate-800/60 rounded-2xl border border-white/[0.07] overflow-hidden flex items-center justify-center group">
-                {p.videoOff ? (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl font-bold shadow-xl">
-                    {p.name[0]}
+        {/* Video Area */}
+        <div className="flex-1 p-2 md:p-4 overflow-hidden transition-all duration-300 relative flex flex-col">
+          {currentLayout === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 h-full auto-rows-fr">
+              {displayParticipants.map((p) => (
+                <div key={p.id} className="relative bg-slate-800/60 rounded-2xl border border-white/[0.07] overflow-hidden flex items-center justify-center group">
+                  {p.isLocal && p.videoOn ? (
+                    <video 
+                      ref={localVideoRef} 
+                      autoPlay 
+                      playsInline 
+                      muted 
+                      className="w-full h-full object-cover" 
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center">
+                      <InitialsAvatar name={p.name} url={p.avatarUrl} className="w-20 h-20 text-2xl shadow-xl" />
+                    </div>
+                  )}
+                  <div className="absolute bottom-3 left-3 flex items-center justify-between">
+                    <div className="bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                      {p.name}
+                    </div>
                   </div>
-                ) : (
-                  <img
-                    src={`https://images.unsplash.com/photo-${['1573496359142-b8d87734a5a2', '1507003211169-0a1dd7228f2d', '1573497019940-1c28c88b4f3e', '1506794778202-cad84cf45f1d'][i]}?auto=format&fit=crop&q=80&w=600`}
-                    className="w-full h-full object-cover opacity-70"
-                    alt={p.name}
-                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Speaker View
+            <div className="flex flex-col h-full gap-2">
+              {/* Active Speaker (Large) */}
+              <div className="flex-1 relative bg-slate-800/60 rounded-2xl border border-white/[0.07] overflow-hidden flex items-center justify-center group">
+                {/* Fallback to local user if no active speaker detected or active speaker is local */}
+                <video 
+                  ref={localVideoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  className={`w-full h-full object-cover ${(!activeSpeakerId || activeSpeakerId === user?.name || activeSpeakerId === 'You') && isVideoOn ? 'block' : 'hidden'}`} 
+                />
+                {((activeSpeakerId && activeSpeakerId !== user?.name && activeSpeakerId !== 'You') || !isVideoOn) && (
+                  <InitialsAvatar name={activeSpeakerId || 'You'} className="w-32 h-32 text-4xl shadow-2xl" />
                 )}
-                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                  <div className="bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                    {p.muted && <MicOff className="w-3 h-3 text-red-400" />}
-                    {p.name}{p.isHost && <span className="text-blue-400 text-[10px] font-semibold ml-1">HOST</span>}
+                <div className="absolute bottom-4 left-4">
+                  <div className="bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2">
+                    {activeSpeakerId || 'You'}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+              
+              {/* Thumbnails row */}
+              <div className="h-32 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                {displayParticipants.map((p) => (
+                  <div key={p.id} className="w-48 flex-shrink-0 relative bg-slate-800/60 rounded-xl border border-white/[0.07] overflow-hidden flex items-center justify-center">
+                    {p.isLocal && p.videoOn ? (
+                      <video 
+                        autoPlay 
+                        playsInline 
+                        muted 
+                        className="w-full h-full object-cover"
+                        ref={(el) => { if (el && localStream) el.srcObject = localStream }}
+                      />
+                    ) : (
+                      <InitialsAvatar name={p.name} url={p.avatarUrl} className="w-12 h-12 text-sm shadow-md" />
+                    )}
+                    <div className="absolute bottom-2 left-2">
+                      <div className="bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1">
+                        {p.name}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Live Caption */}
           {liveCaption && (
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-2xl w-full px-4">
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-2xl w-full px-4 z-10">
               <div className="bg-black/75 backdrop-blur text-white text-center py-3 px-6 rounded-2xl text-sm font-medium border border-white/10 animate-fade-in shadow-xl">
                 {liveCaption}
               </div>
@@ -202,19 +352,25 @@ export default function MeetingRoom() {
             {sidebarTab === 'chat' && (
               <>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {messages.map(msg => (
-                    <div key={msg.id} className={`flex gap-2 ${msg.sender === (user?.name || 'You') ? 'flex-row-reverse' : ''}`}>
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                        {msg.sender[0]}
-                      </div>
-                      <div className={`max-w-[75%] ${msg.sender === (user?.name || 'You') ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                        <div className={`px-3 py-2 rounded-2xl text-sm ${msg.sender === (user?.name || 'You') ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white/[0.07] text-slate-200 rounded-tl-none'}`}>
-                          {msg.text}
+                  {messages.length === 0 ? (
+                    <EmptyState 
+                      icon={MessageSquare} 
+                      title="No messages yet" 
+                      description="Send a message to the group — it appears here in real time." 
+                    />
+                  ) : (
+                    messages.map((msg, idx) => (
+                      <div key={msg._id || idx} className={`flex gap-2 ${msg.senderId === user?.id || msg.senderId?._id === user?.id ? 'flex-row-reverse' : ''}`}>
+                        <InitialsAvatar name={msg.senderName || msg.senderId?.name || 'User'} className="w-7 h-7 text-[10px] flex-shrink-0" />
+                        <div className={`max-w-[75%] ${msg.senderId === user?.id || msg.senderId?._id === user?.id ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                          <div className={`px-3 py-2 rounded-2xl text-sm ${msg.senderId === user?.id || msg.senderId?._id === user?.id ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white/[0.07] text-slate-200 rounded-tl-none'}`}>
+                            {msg.text}
+                          </div>
+                          <span className="text-[10px] text-slate-500">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <span className="text-[10px] text-slate-500">{msg.sender !== (user?.name || 'You') && `${msg.sender} · `}{msg.time}</span>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                   <div ref={chatEndRef} />
                 </div>
                 <div className="p-3 border-t border-white/[0.06]">
@@ -238,21 +394,14 @@ export default function MeetingRoom() {
             {/* People Tab */}
             {sidebarTab === 'people' && (
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                <p className="text-xs text-slate-500 mb-3">{MOCK_PARTICIPANTS.length} participants</p>
-                {MOCK_PARTICIPANTS.map(p => (
+                <p className="text-xs text-slate-500 mb-3">{displayParticipants.length} participants</p>
+                {displayParticipants.map(p => (
                   <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-sm font-bold">
-                      {p.name[0]}
-                    </div>
+                    <InitialsAvatar name={p.name} url={p.avatarUrl} className="w-9 h-9 text-sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate">
                         {p.name}
-                        {p.isHost && <span className="ml-2 text-[10px] text-blue-400 font-semibold">HOST</span>}
                       </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {p.muted ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4 text-slate-400" />}
-                      {p.videoOff ? <CameraOff className="w-4 h-4 text-red-400" /> : <Camera className="w-4 h-4 text-slate-400" />}
                     </div>
                   </div>
                 ))}
@@ -261,24 +410,37 @@ export default function MeetingRoom() {
 
             {/* Transcript/Captions Tab */}
             {sidebarTab === 'transcript' && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
+                <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 flex-shrink-0">
                   <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <p className="text-xs text-amber-300">AI is transcribing in real-time via Whisper</p>
                 </div>
-                {transcript.map((entry, i) => (
-                  <div key={i} className="bg-white/[0.04] rounded-xl p-3">
-                    <p className="text-[11px] font-semibold text-blue-400 mb-1">{entry.speaker}</p>
-                    <p className="text-xs text-slate-300 leading-relaxed">{entry.text}</p>
+                
+                {transcript.length === 0 && !liveCaption ? (
+                  <div className="flex-1 flex">
+                    <EmptyState 
+                      icon={Mic} 
+                      title="Transcription will appear here" 
+                      description="Live speech will be captured automatically once participants start speaking." 
+                    />
                   </div>
-                ))}
-                {liveCaption && (
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 animate-pulse">
-                    <p className="text-[11px] font-semibold text-blue-400 mb-1">Live</p>
-                    <p className="text-xs text-slate-300 leading-relaxed">{liveCaption.replace(/^\[.*?\] /, '')}</p>
-                  </div>
+                ) : (
+                  <>
+                    {transcript.map((entry, i) => (
+                      <div key={i} className="bg-white/[0.04] rounded-xl p-3">
+                        <p className="text-[11px] font-semibold text-blue-400 mb-1">{entry.speaker}</p>
+                        <p className="text-xs text-slate-300 leading-relaxed">{entry.text}</p>
+                      </div>
+                    ))}
+                    {liveCaption && (
+                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 animate-pulse">
+                        <p className="text-[11px] font-semibold text-blue-400 mb-1">Live</p>
+                        <p className="text-xs text-slate-300 leading-relaxed">{liveCaption.replace(/^\[.*?\] /, '')}</p>
+                      </div>
+                    )}
+                    <div ref={transcriptEndRef} />
+                  </>
                 )}
-                <div ref={transcriptEndRef} />
               </div>
             )}
           </div>

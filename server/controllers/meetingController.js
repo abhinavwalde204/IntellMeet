@@ -103,15 +103,28 @@ export const createMeeting = async (req, res) => {
 // @access  Private
 export const getMeetings = async (req, res) => {
   try {
-    const meetings = await Meeting.find({
+    const { status, limit } = req.query;
+    let query = {
       $or: [
         { hostId: req.user.id },
         { 'participants.userId': req.user.id }
       ]
-    })
-    .sort({ createdAt: -1 })
-    .populate('hostId', 'name email avatar')
-    .lean();
+    };
+
+    if (status) {
+      query.status = status;
+    }
+
+    let meetingQuery = Meeting.find(query)
+      .sort({ createdAt: -1 })
+      .populate('hostId', 'name email avatarUrl')
+      .populate('participants.userId', 'name email avatarUrl');
+
+    if (limit) {
+      meetingQuery = meetingQuery.limit(parseInt(limit, 10));
+    }
+
+    const meetings = await meetingQuery.lean();
 
     res.status(200).json({ success: true, meetings });
   } catch (error) {
@@ -315,3 +328,88 @@ export const updateActionItem = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Delete a meeting
+// @route   DELETE /api/meetings/:id
+// @access  Private
+export const deleteMeeting = async (req, res) => {
+  try {
+    const meeting = await Meeting.findOneAndDelete({ _id: req.params.id, hostId: req.user.id });
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found or not authorized' });
+    }
+    res.status(200).json({ success: true, message: 'Meeting deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get meeting participants
+// @route   GET /api/meetings/:id/participants
+// @access  Private
+export const getParticipants = async (req, res) => {
+  try {
+    const meeting = await Meeting.findById(req.params.id)
+      .populate('participants.userId', 'name email avatarUrl');
+    
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+    
+    res.status(200).json({ success: true, participants: meeting.participants });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get meeting messages
+// @route   GET /api/meetings/:id/messages
+// @access  Private
+export const getMessages = async (req, res) => {
+  try {
+    const meeting = await Meeting.findById(req.params.id)
+      .populate('messages.senderId', 'name avatarUrl');
+      
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+    
+    res.status(200).json({ success: true, messages: meeting.messages || [] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Add a message to a meeting
+// @route   POST /api/meetings/:id/messages
+// @access  Private
+export const addMessage = async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    const meeting = await Meeting.findByIdAndUpdate(
+      req.params.id,
+      { 
+        $push: { 
+          messages: { 
+            senderId: req.user.id, 
+            senderName: req.user.name, 
+            text, 
+            timestamp: new Date() 
+          } 
+        } 
+      },
+      { new: true }
+    ).populate('messages.senderId', 'name avatarUrl');
+    
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+    
+    const newMessage = meeting.messages[meeting.messages.length - 1];
+    res.status(200).json({ success: true, message: newMessage });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

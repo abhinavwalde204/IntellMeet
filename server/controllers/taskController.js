@@ -10,7 +10,7 @@ export const getTasks = async (req, res) => {
 
     const tasks = await Task.find(filter)
       .sort({ order: 1, createdAt: -1 })
-      .populate('assigneeId', 'name email avatar')
+      .populate('assigneeId', 'name email avatarUrl')
       .populate('meetingId', 'title roomId')
       .lean();
 
@@ -53,7 +53,7 @@ export const updateTask = async (req, res) => {
   try {
     const updates = req.body;
     const task = await Task.findByIdAndUpdate(req.params.id, updates, { new: true })
-      .populate('assigneeId', 'name email avatar');
+      .populate('assigneeId', 'name email avatarUrl');
 
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });

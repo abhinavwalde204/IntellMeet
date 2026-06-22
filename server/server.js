@@ -14,6 +14,8 @@ import meetingRoutes from './routes/meetingRoutes.js';
 import workspaceRoutes from './routes/workspaceRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
+
 
 dotenv.config();
 
@@ -97,18 +99,28 @@ async function startServer() {
   io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
 
-    socket.on('join-room', (roomId, userId) => {
+    socket.on('join-room', (roomId, user) => {
       socket.join(roomId);
-      socket.to(roomId).emit('user-connected', userId);
-      console.log(`User ${userId} joined room ${roomId}`);
+      socket.to(roomId).emit('participant:joined', user);
+      console.log(`User ${user?.id || user?._id} joined room ${roomId}`);
+
+      socket.on('disconnect', () => {
+        socket.to(roomId).emit('participant:left', user?.id || user?._id);
+      });
     });
 
+    // Each user joins a private room for targeted notifications
+    socket.on('join-user-room', (userId) => {
+      socket.join(`user-${userId}`);
+    });
+
+
     socket.on('send-message', (roomId, message) => {
-      socket.to(roomId).emit('receive-message', message);
+      socket.to(roomId).emit('message:receive', message);
     });
 
     socket.on('transcript-update', (roomId, entry) => {
-      socket.to(roomId).emit('transcript-entry', entry);
+      socket.to(roomId).emit('transcription:update', entry);
     });
 
     socket.on('task-update', (workspaceId, task) => {
@@ -138,6 +150,8 @@ async function startServer() {
   app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/tasks', taskRoutes);
   app.use('/api/notifications', notificationRoutes);
+  app.use('/api/analytics', analyticsRoutes);
+
 
   // Sentry error handler
   Sentry.setupExpressErrorHandler(app);

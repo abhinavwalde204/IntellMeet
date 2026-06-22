@@ -129,3 +129,57 @@ export const joinWorkspace = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Get current active workspace (first one user belongs to)
+// @route   GET /api/workspaces/current
+// @access  Private
+export const getCurrentWorkspace = async (req, res) => {
+  try {
+    const workspace = await Workspace.findOne({
+      'members.userId': req.user.id
+    }).populate('members.userId', 'name email avatarUrl');
+
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'No workspace found' });
+    }
+
+    res.status(200).json({ success: true, workspace });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Generate a generic invite token for a workspace
+// @route   POST /api/workspaces/:id/invite-token
+// @access  Private (Admin only)
+export const generateInviteToken = async (req, res) => {
+  try {
+    const workspace = await Workspace.findById(req.params.id);
+
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace not found' });
+    }
+
+    // Check if requester is admin
+    const requester = workspace.members.find(
+      m => m.userId.toString() === req.user.id
+    );
+    if (!requester || requester.role !== 'Admin') {
+      return res.status(403).json({ success: false, message: 'Only admins can generate invite links' });
+    }
+
+    const token = crypto.randomBytes(16).toString('hex');
+    workspace.invites.push({
+      email: 'generic-link',
+      token,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes short-lived
+      status: 'pending'
+    });
+
+    await workspace.save();
+
+    res.status(200).json({ success: true, token });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

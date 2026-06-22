@@ -14,6 +14,7 @@ router.use(protect);
 
 router.route('/').get(getTasks).post(createTask);
 router.post('/batch', batchCreateTasks);
-router.route('/:id').put(updateTask).delete(deleteTask);
+router.route('/:id').put(updateTask).patch(updateTask).delete(deleteTask);
+
 
 export default router;
